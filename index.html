@@ -1,0 +1,508 @@
+
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>جزیره آرامش ۲ | نسخه کارتونی</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;700;900&display=swap');
+*{box-sizing:border-box}
+body{margin:0;background:#071d2b;color:white;font-family:Vazirmatn,Tahoma,sans-serif}
+header{padding:14px;text-align:center;background:linear-gradient(90deg,#073d4d,#126c70);border-bottom:2px solid #46d8b0}
+header h1{margin:0;color:#8effd5;font-size:27px}
+header p{margin:4px;color:#d4fff0}
+.game{max-width:1100px;margin:20px auto;padding:12px}
+.hud{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.box{background:#123746;padding:12px 18px;border:1px solid #277b7d;border-radius:14px;font-weight:bold}
+.box span{color:#80ffd0}
+canvas{display:block;width:100%;height:auto;background:#5bd4c0;border:4px solid #3a9c91;border-radius:20px;box-shadow:0 0 35px #00cba555;touch-action:none}
+.controls{display:flex;justify-content:center;gap:12px;flex-wrap:wrap;margin:18px}
+.controls button,.action{background:#147e78;color:white;border:1px solid #72ffcf;padding:13px 22px;border-radius:13px;font:inherit;font-weight:bold;cursor:pointer}
+.controls button:active{background:#24bda1}
+.info{background:#123746;padding:15px;border-radius:16px;line-height:2;text-align:center}
+.overlay{position:fixed;inset:0;background:#03121be8;display:none;align-items:center;justify-content:center;padding:15px;z-index:10}
+.modal{background:linear-gradient(145deg,#123c4b,#176c68);border:2px solid #7effce;border-radius:22px;padding:25px;width:min(480px,100%);text-align:center;box-shadow:0 0 40px #00ffc044}
+.modal h2{color:#8effd5}
+.answers button{display:block;width:100%;margin:9px 0;padding:12px;border:1px solid #72e9c1;background:#205e68;color:white;border-radius:12px;font:inherit;cursor:pointer}
+.answers button:hover{background:#278e80}
+#message{line-height:2;color:#c5ffe9}
+.mobile{display:grid;grid-template-columns:repeat(3,55px);justify-content:center;gap:7px;margin:15px}
+.mobile button{width:55px;height:48px;border-radius:12px;background:#155c68;color:white;border:1px solid #70eac0;font-size:22px;touch-action:none}
+footer{text-align:center;padding:25px;color:#a5ded0;line-height:2}
+footer b{color:#80ffd0}
+@media(max-width:600px){.box{font-size:12px;padding:9px}header h1{font-size:21px}}
+</style>
+</head>
+<body>
+<header>
+<h1>🏝️ جزیره آرامش ۲ | نسخه کارتونی</h1>
+<p>مأموریت نجات احساسات | بازی مدیریت خشم</p>
+</header>
+
+<div class="game">
+ <div class="hud">
+  <div class="box">⭐ امتیاز: <span id="score">۰</span></div>
+  <div class="box">💎 کریستال: <span id="gems">۰</span> / ۱۰</div>
+  <div class="box">🎯 مرحله: <span id="level">۱</span></div>
+ </div>
+
+ <canvas id="game" width="900" height="560" aria-label="محیط بازی جزیره آرامش"></canvas>
+
+ <div class="controls">
+  <button onclick="startGame()">▶ شروع بازی</button>
+  <button onclick="restart()">↻ شروع دوباره</button>
+ </div>
+
+ <div class="mobile">
+  <div></div><button data-dir="up">⬆️</button><div></div>
+  <button data-dir="left">⬅️</button><button data-dir="down">⬇️</button><button data-dir="right">➡️</button>
+ </div>
+
+ <div class="info" id="info">به جزیره خوش آمدی! مأموریت تو پیدا کردن ده کریستال آرامش است. برای حرکت از کلیدهای جهت‌دار یا دکمه‌های گوشی استفاده کن.</div>
+</div>
+
+<div class="overlay" id="overlay">
+ <div class="modal">
+  <h2 id="questionTitle">🧠 مأموریت جدید</h2>
+  <p id="question"></p>
+  <div class="answers" id="answers"></div>
+  <p id="message"></p>
+  <button class="action" id="continue" style="display:none" onclick="closeQuestion()">ادامه بازی ←</button>
+ </div>
+</div>
+
+<footer>
+ <b>ساخته شده توسط محمد صدرا اسدی</b><br>
+ زنگ بهداشت / استاد دارستانی<br>
+ پروژه پژوهشی مدیریت و روش‌های کنترل خشم
+</footer>
+
+<script>
+const canvas=document.getElementById("game");
+const ctx=canvas.getContext("2d");
+let player={x:450,y:280,speed:4},gems=[],score=0,collected=0,running=false,completed=false,keys={},particles=[],frame=0;
+
+const questions=[
+{q:"دوستت بدون اجازه وسایلت را برداشته است. بهترین واکنش چیست؟",a:["داد زدن سر او","آرام توضیح دادن ناراحتی","خراب کردن وسایل او"],c:1,why:"بیان محترمانه احساسات به حل اختلاف کمک می‌کند."},
+{q:"وقتی خیلی عصبانی هستی، کدام کار بهتر است؟",a:["چند نفس آرام بکشی","فریاد بزنی","فوراً تصمیم بگیری"],c:0,why:"تنفس آرام کمک می‌کند بدن و ذهن فرصت آرام‌شدن پیدا کنند."},
+{q:"اگر کسی با تو مخالفت کند، چه کار می‌کنی؟",a:["به حرفش گوش می‌دهم","به او توهین می‌کنم","بحث را به دعوا تبدیل می‌کنم"],c:0,why:"شنیدن نظر دیگران به پیدا کردن راه‌حل مشترک کمک می‌کند."},
+{q:"کدام جمله برای بیان ناراحتی بهتر است؟",a:["از تو متنفرم!","تو همیشه بدی!","از این اتفاق ناراحت شدم."],c:2,why:"صحبت درباره احساس خودمان بهتر از سرزنش‌کردن دیگران است."},
+{q:"اگر کنترل عصبانیت برایت سخت شده باشد چه می‌کنی؟",a:["از یک بزرگسال قابل اعتماد کمک می‌گیرم","مشکل را پنهان می‌کنم","با دیگران دعوا می‌کنم"],c:0,why:"کمک‌گرفتن از والدین، معلم یا مشاور راه مناسبی است."},
+{q:"کدام کار برای مدیریت خشم مفید است؟",a:["سرزنش دیگران","مکث و فکرکردن","تلافی کردن"],c:1,why:"مکث به ما فرصت می‌دهد قبل از واکنش، پیامد رفتارمان را بررسی کنیم."},
+{q:"خشم چه نوع احساسی است؟",a:["احساسی طبیعی","احساسی که فقط افراد بد دارند","احساسی که نباید درباره آن حرف زد"],c:0,why:"خشم طبیعی است؛ مهم این است که رفتارمان را مدیریت کنیم."}
+];
+
+function drawBackground(){
+ const sky=ctx.createLinearGradient(0,0,0,560);
+ sky.addColorStop(0,"#7bd8e8");
+ sky.addColorStop(.55,"#b8e9c4");
+ sky.addColorStop(1,"#e5edb2");
+ ctx.fillStyle=sky;
+ ctx.fillRect(0,0,900,560);
+
+ ctx.fillStyle="#37b8c2";
+ ctx.beginPath();
+ ctx.moveTo(0,390);
+ ctx.quadraticCurveTo(180,350,310,405);
+ ctx.quadraticCurveTo(570,470,900,365);
+ ctx.lineTo(900,560);
+ ctx.lineTo(0,560);
+ ctx.fill();
+
+ ctx.fillStyle="#f2d79b";
+ ctx.beginPath();
+ ctx.moveTo(0,420);
+ ctx.quadraticCurveTo(180,380,330,435);
+ ctx.quadraticCurveTo(590,500,900,400);
+ ctx.lineTo(900,560);
+ ctx.lineTo(0,560);
+ ctx.fill();
+
+ ctx.fillStyle="#6fbd73";
+ ctx.beginPath();
+ ctx.ellipse(450,295,390,245,0,0,Math.PI*2);
+ ctx.fill();
+
+ const grass=ctx.createLinearGradient(0,100,0,510);
+ grass.addColorStop(0,"#9bd77d");
+ grass.addColorStop(1,"#4cae70");
+ ctx.fillStyle=grass;
+ ctx.beginPath();
+ ctx.ellipse(450,295,355,215,0,0,Math.PI*2);
+ ctx.fill();
+
+ ctx.strokeStyle="#d8b77e";
+ ctx.lineWidth=48;
+ ctx.lineCap="round";
+ ctx.beginPath();
+ ctx.moveTo(90,300);
+ ctx.bezierCurveTo(250,130,380,455,560,330);
+ ctx.bezierCurveTo(670,250,720,175,820,240);
+ ctx.stroke();
+
+ ctx.strokeStyle="#ebd09a";
+ ctx.lineWidth=35;
+ ctx.beginPath();
+ ctx.moveTo(90,300);
+ ctx.bezierCurveTo(250,130,380,455,560,330);
+ ctx.bezierCurveTo(670,250,720,175,820,240);
+ ctx.stroke();
+
+ function tree(x,y,s=1){
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.scale(s,s);
+  ctx.fillStyle="#397b50";
+  ctx.beginPath();
+  ctx.ellipse(5,28,25,8,0,0,Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle="#8a5737";
+  ctx.fillRect(-6,-8,12,38);
+  ctx.fillStyle="#237b50";
+  ctx.beginPath();
+  ctx.arc(0,-20,27,0,Math.PI*2);
+  ctx.arc(-17,-8,19,0,Math.PI*2);
+  ctx.arc(17,-7,20,0,Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle="#45a96a";
+  ctx.beginPath();
+  ctx.arc(-8,-28,15,0,Math.PI*2);
+  ctx.arc(12,-19,13,0,Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+ }
+
+ [[90,155,.9],[180,385,.75],[760,360,.85],[800,130,.95],[640,115,.65],[320,115,.65]].forEach(t=>tree(...t));
+
+ for(let i=0;i<34;i++){
+  let x=(i*137+43)%850+20,y=(i*71+80)%390+70;
+  ctx.fillStyle=i%2?"#2e965e":"#3ca765";
+  ctx.beginPath();
+  ctx.arc(x,y,5+(i%4)*2,0,Math.PI*2);
+  ctx.fill();
+ }
+
+ for(let i=0;i<22;i++){
+  let x=(i*97+35)%850+20,y=(i*53+120)%390+60;
+  ctx.fillStyle="#fff0d0";
+  ctx.beginPath();
+  ctx.arc(x,y,2.8,0,Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle="#f4c94d";
+  ctx.beginPath();
+  ctx.arc(x,y,1.3,0,Math.PI*2);
+  ctx.fill();
+ }
+
+ ctx.fillStyle="#ffffffaa";
+ for(let i=0;i<3;i++){
+  let x=(i*330+frame*.16)%1050-70,y=45+i*24;
+  ctx.beginPath();
+  ctx.arc(x,y,18,0,Math.PI*2);
+  ctx.arc(x+22,y-8,24,0,Math.PI*2);
+  ctx.arc(x+48,y,18,0,Math.PI*2);
+  ctx.fill();
+ }
+}
+
+function drawCartoon(x,y,shirt,hair,scale=1,moving=false){
+ ctx.save();
+ ctx.translate(x,y);
+ ctx.scale(scale,scale);
+ const bob=moving?Math.sin(frame*.22)*2:0;
+ ctx.translate(0,bob);
+
+ ctx.fillStyle="#245c4b55";
+ ctx.beginPath();
+ ctx.ellipse(0,24,19,7,0,0,Math.PI*2);
+ ctx.fill();
+
+ ctx.strokeStyle="#30465a";
+ ctx.lineWidth=6;
+ ctx.lineCap="round";
+ ctx.beginPath();
+ ctx.moveTo(-6,12);
+ ctx.lineTo(-8,24);
+ ctx.moveTo(6,12);
+ ctx.lineTo(8,24);
+ ctx.stroke();
+
+ ctx.fillStyle="#f7f4e9";
+ ctx.beginPath();
+ ctx.ellipse(-10,25,7,4,0,0,Math.PI*2);
+ ctx.ellipse(10,25,7,4,0,0,Math.PI*2);
+ ctx.fill();
+
+ ctx.strokeStyle="#f2bd91";
+ ctx.lineWidth=7;
+ ctx.beginPath();
+ ctx.moveTo(-11,-1);
+ ctx.lineTo(-17,9);
+ ctx.moveTo(11,-1);
+ ctx.lineTo(17,8);
+ ctx.stroke();
+
+ ctx.fillStyle=shirt;
+ ctx.beginPath();
+ ctx.roundRect(-12,-7,24,24,8);
+ ctx.fill();
+
+ ctx.fillStyle="#ffffff55";
+ ctx.fillRect(-7,-3,4,12);
+
+ ctx.fillStyle="#f4c49c";
+ ctx.fillRect(-4,-13,8,9);
+ ctx.fillStyle="#f4c49c";
+ ctx.beginPath();
+ ctx.ellipse(0,-22,14,16,0,0,Math.PI*2);
+ ctx.fill();
+
+ ctx.fillStyle=hair;
+ ctx.beginPath();
+ ctx.arc(0,-28,14,Math.PI,Math.PI*2);
+ ctx.lineTo(13,-22);
+ ctx.quadraticCurveTo(7,-29,3,-23);
+ ctx.quadraticCurveTo(-4,-31,-13,-20);
+ ctx.closePath();
+ ctx.fill();
+
+ ctx.fillStyle="#e9ae89";
+ ctx.beginPath();
+ ctx.arc(-13,-21,3,0,Math.PI*2);
+ ctx.arc(13,-21,3,0,Math.PI*2);
+ ctx.fill();
+
+ ctx.fillStyle="#263b4b";
+ ctx.beginPath();
+ ctx.arc(-5,-22,1.7,0,Math.PI*2);
+ ctx.arc(5,-22,1.7,0,Math.PI*2);
+ ctx.fill();
+
+ ctx.strokeStyle="#9b5147";
+ ctx.lineWidth=1.5;
+ ctx.beginPath();
+ ctx.arc(0,-18,4,.15,Math.PI-.15);
+ ctx.stroke();
+
+ ctx.fillStyle="#ed9e91aa";
+ ctx.beginPath();
+ ctx.arc(-9,-17,3,0,Math.PI*2);
+ ctx.arc(9,-17,3,0,Math.PI*2);
+ ctx.fill();
+
+ ctx.restore();
+}
+
+function drawPlayer(){
+ drawCartoon(player.x,player.y,"#258bb2","#49362d",1.12,
+ !!(keys.ArrowUp||keys.ArrowDown||keys.ArrowLeft||keys.ArrowRight||keys.w||keys.a||keys.s||keys.d));
+}
+
+function drawFriends(){
+ drawCartoon(165,255,"#f1a64b","#633d2b",.88,false);
+ drawCartoon(730,295,"#a66bd0","#3d302b",.92,false);
+}
+
+function drawGems(){
+ gems.forEach(g=>{
+  let pulse=Math.sin(frame*.08+g.phase)*5;
+  ctx.save();
+  ctx.translate(g.x,g.y);
+  ctx.shadowColor="#00fff0";
+  ctx.shadowBlur=22+pulse;
+  ctx.fillStyle="#5ffff0";
+  ctx.beginPath();
+  ctx.moveTo(0,-19-pulse);
+  ctx.lineTo(16,0);
+  ctx.lineTo(0,19+pulse);
+  ctx.lineTo(-16,0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+ });
+}
+
+function drawParticles(){
+ particles.forEach(p=>{
+  ctx.globalAlpha=p.life/35;
+  ctx.fillStyle="#fff7a5";
+  ctx.beginPath();
+  ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+  ctx.fill();
+  p.x+=p.dx;
+  p.y+=p.dy;
+  p.life--;
+ });
+ ctx.globalAlpha=1;
+ particles=particles.filter(p=>p.life>0);
+}
+
+function spawnGems(){
+ gems=[];
+ [[200,190],[680,180],[280,400],[610,390],[450,110],
+  [120,340],[780,360],[360,170],[540,430],[760,120]]
+ .forEach((p,i)=>gems.push({x:p[0],y:p[1],phase:i}));
+}
+
+function draw(){
+ frame++;
+ drawBackground();
+ drawFriends();
+ drawGems();
+ drawParticles();
+ drawPlayer();
+ ctx.fillStyle="#fff";
+ ctx.font="bold 17px Vazirmatn";
+ ctx.textAlign="center";
+ ctx.fillText("جزیره آرامش",450,515);
+}
+
+function update(){
+ if(running){
+  let dx=0,dy=0;
+  if(keys.ArrowUp||keys.w)dy--;
+  if(keys.ArrowDown||keys.s)dy++;
+  if(keys.ArrowLeft||keys.a)dx--;
+  if(keys.ArrowRight||keys.d)dx++;
+
+  if(dx||dy){
+   let length=Math.hypot(dx,dy);
+   player.x+=dx/length*player.speed;
+   player.y+=dy/length*player.speed;
+  }
+
+  player.x=Math.max(65,Math.min(835,player.x));
+  player.y=Math.max(90,Math.min(470,player.y));
+
+  for(let i=gems.length-1;i>=0;i--){
+   let g=gems[i];
+   if(Math.hypot(player.x-g.x,player.y-g.y)<32){
+    gems.splice(i,1);
+    collected++;
+    score+=20;
+    updateHUD();
+
+    for(let j=0;j<20;j++){
+     particles.push({
+      x:g.x,y:g.y,
+      dx:(Math.random()-.5)*5,
+      dy:(Math.random()-.5)*5,
+      life:35,size:Math.random()*5+2
+     });
+    }
+    running=false;
+    askQuestion();
+    break;
+   }
+  }
+ }
+ draw();
+ requestAnimationFrame(update);
+}
+
+function updateHUD(){
+ document.getElementById("score").textContent=score;
+ document.getElementById("gems").textContent=collected;
+ document.getElementById("level").textContent=Math.min(5,collected+1);
+}
+
+function askQuestion(){
+ const q=questions[Math.floor(Math.random()*questions.length)];
+ document.getElementById("questionTitle").textContent="💎 کریستال آرامش پیدا شد!";
+ document.getElementById("question").textContent=q.q;
+ document.getElementById("message").textContent="";
+ document.getElementById("continue").style.display="none";
+
+ const box=document.getElementById("answers");
+ box.innerHTML="";
+
+ q.a.forEach((answer,i)=>{
+  let b=document.createElement("button");
+  b.textContent=answer;
+  b.onclick=()=>{
+   [...box.children].forEach(x=>x.disabled=true);
+   if(i===q.c){
+    score+=30;
+    b.style.background="#168b60";
+    document.getElementById("message").textContent="🌟 آفرین! پاسخ درست بود. "+q.why;
+   }else{
+    box.children[q.c].style.background="#168b60";
+    b.style.background="#a84b4b";
+    document.getElementById("message").textContent="📘 پاسخ مناسب مشخص شد. "+q.why;
+   }
+   updateHUD();
+   document.getElementById("continue").style.display="inline-block";
+  };
+  box.appendChild(b);
+ });
+
+ document.getElementById("overlay").style.display="flex";
+}
+
+function closeQuestion(){
+ document.getElementById("overlay").style.display="none";
+ if(collected>=10)win();
+ else{
+  running=true;
+  document.getElementById("info").textContent="عالی پیش می‌روی! کریستال بعدی را پیدا کن.";
+ }
+}
+
+function win(){
+ completed=true;
+ running=false;
+ document.getElementById("overlay").style.display="flex";
+ document.getElementById("questionTitle").textContent="🏆 قهرمان جزیره آرامش!";
+ document.getElementById("question").textContent="تو تمام کریستال‌های آرامش را پیدا کردی!";
+ document.getElementById("answers").innerHTML="";
+ document.getElementById("message").textContent="امتیاز نهایی: "+score+" | تو یاد گرفتی خشم را بشناسی، مکث کنی و با احترام صحبت کنی.";
+ document.getElementById("continue").textContent="بازی دوباره";
+ document.getElementById("continue").onclick=restart;
+ document.getElementById("continue").style.display="inline-block";
+}
+
+function startGame(){
+ if(completed)return;
+ running=true;
+ document.getElementById("info").textContent="حرکت کن و ده کریستال آرامش را جمع‌آوری کن!";
+}
+
+function restart(){
+ player={x:450,y:280,speed:4};
+ score=0;
+ collected=0;
+ completed=false;
+ running=true;
+ spawnGems();
+ updateHUD();
+ document.getElementById("overlay").style.display="none";
+ document.getElementById("continue").onclick=closeQuestion;
+ document.getElementById("continue").textContent="ادامه بازی";
+ document.getElementById("info").textContent="بازی از نو شروع شد! موفق باشی.";
+}
+
+window.addEventListener("keydown",e=>{
+ keys[e.key]=true;
+ if(["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.key))e.preventDefault();
+});
+window.addEventListener("keyup",e=>keys[e.key]=false);
+
+document.querySelectorAll("[data-dir]").forEach(btn=>{
+ const map={up:"ArrowUp",down:"ArrowDown",left:"ArrowLeft",right:"ArrowRight"};
+ const key=map[btn.dataset.dir];
+ btn.addEventListener("pointerdown",e=>{
+  e.preventDefault();
+  keys[key]=true;
+ });
+ ["pointerup","pointerleave","pointercancel"].forEach(ev=>
+  btn.addEventListener(ev,()=>keys[key]=false)
+ );
+});
+
+spawnGems();
+updateHUD();
+update();
+</script>
+</body>
+</html>
